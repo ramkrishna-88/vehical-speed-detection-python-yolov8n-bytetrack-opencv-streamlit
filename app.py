@@ -2,7 +2,6 @@ import streamlit as st
 import os
 from speed_vehical_detector import process_video
 
-# Create folders if they don't exist
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
@@ -31,19 +30,25 @@ if uploaded_file is not None:
 
     st.info("Processing video... Please wait.")
 
-    with st.spinner("Running YOLOv8 + ByteTrack..."):
-        process_video(input_path, output_path)
+    try:
+        with st.spinner("Running YOLOv8 + ByteTrack..."):
+            process_video(input_path, output_path)
 
-    st.success("Processing completed!")
+        st.success("Processing completed!")
 
-    st.subheader("Processed Video")
+        st.subheader("Processed Video")
+        st.video(output_path)
 
-    st.video(output_path)
+        with open(output_path, "rb") as file:
+            st.download_button(
+                label="⬇ Download Processed Video",
+                data=file,
+                file_name="vehicle_speed_detection.mp4",
+                mime="video/mp4"
+            )
 
-    with open(output_path, "rb") as file:
-        st.download_button(
-            label="⬇ Download Processed Video",
-            data=file,
-            file_name="vehicle_speed_detection.mp4",
-            mime="video/mp4"
-        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()   # Shows full error in Render logs
+        st.error(f"Error: {e}")

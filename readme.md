@@ -42,7 +42,7 @@ This application detects vehicles in uploaded videos, tracks them across frames,
 <h2><a class="anchor" id="Technologies Used"></a>Technologies Used</h2>
 
 - Python	
-- YOLOvn8
+- YOLOv8n
 - ByteTrack	
 - OpenCV	
 - NumPy	

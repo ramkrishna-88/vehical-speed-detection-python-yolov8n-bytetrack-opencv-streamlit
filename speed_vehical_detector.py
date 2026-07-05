@@ -88,7 +88,7 @@ def process_video(video_path, output_path):
         for frame in frame_generator:
             results = model.predict(
                 frame,
-                imgsz=960,
+                imgsz=480,
                 conf=0.25,
                 verbose=False,
                 classes=[2, 3, 5, 7],   # car, motorcycle, bus, truck
