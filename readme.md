@@ -2,7 +2,7 @@
 
 A real-time Vehicle Speed Detection System built with 
 
-- **YOLOvn8**
+- **YOLOv8n**
 - **ByteTrack**
 - **OpenCV**
 - **Streamlit**
