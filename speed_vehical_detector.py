@@ -1,19 +1,23 @@
 import argparse
+import gc
 from ultralytics import YOLO
 import cv2
 import numpy as np
 import supervision as sv
 from collections import defaultdict, deque
+scale_x = 1280 / 1920
+scale_y = 720 / 1080
+
 source = np.array([
-    [450, 170],
-    [1450, 170],
-    [1850, 1020],
-    [100, 1020]
+    [int(450 * scale_x), int(170 * scale_y)],
+    [int(1450 * scale_x), int(170 * scale_y)],
+    [int(1850 * scale_x), int(1020 * scale_y)],
+    [int(100 * scale_x), int(1020 * scale_y)]
 ], dtype=np.int32)
 TARGET_WIDTH=40
 TARGET_HEIGHT=250
 # Real-world length of the polygon in meters
-REAL_ROAD_LENGTH = 60.0
+REAL_ROAD_LENGTH = 120
 
 # Conversion factor
 PIXEL_TO_METER = REAL_ROAD_LENGTH / TARGET_HEIGHT
@@ -54,29 +58,36 @@ def process_video(video_path, output_path):
             frame_rate=video_info.fps,
             track_activation_threshold=0.25,
             minimum_matching_threshold=0.8,
-            lost_track_buffer=60,
+            lost_track_buffer=20,
         )
-        thickness=sv.calculate_optimal_line_thickness(
-            resolution_wh=video_info.resolution_wh)
-        text_scale=sv.calculate_optimal_text_scale(
-            resolution_wh=video_info.resolution_wh)
+        OUTPUT_SIZE = (1280,720)
+
+        thickness = sv.calculate_optimal_line_thickness(
+            resolution_wh=OUTPUT_SIZE
+        )
+
+        text_scale = sv.calculate_optimal_text_scale(
+            resolution_wh=OUTPUT_SIZE
+        )
         bounding_box_annotator = sv.BoxAnnotator(thickness=thickness)
         label_annotator = sv.LabelAnnotator(
             text_thickness=thickness,
             text_scale=text_scale,
             text_position=sv.Position.BOTTOM_CENTER,
-            color_lookup=sv.ColorLookup.TRACK)
+            color_lookup=sv.ColorLookup.TRACK
+            )
         trace_annotator = sv.TraceAnnotator(
             thickness=thickness,
-            trace_length=video_info.fps*2,
+            trace_length=40,
             position=sv.Position.BOTTOM_CENTER,
-            color_lookup=sv.ColorLookup.TRACK)
+            color_lookup=sv.ColorLookup.TRACK
+            )
 
         frame_generator=sv.get_video_frames_generator(video_path)
         polygon_zone = sv.PolygonZone(polygon=source)
         view_transform = ViewTransformer(source=source,target=TARGET)
         FPS = int(round(video_info.fps))
-        coordinates=defaultdict(lambda:deque(maxlen=FPS))
+        coordinates=defaultdict(lambda:deque(maxlen=30))
         speed_history = defaultdict(lambda: deque(maxlen=10))
         final_speed = {}
         video_writer = cv2.VideoWriter(
@@ -85,10 +96,23 @@ def process_video(video_path, output_path):
         video_info.fps,
         video_info.resolution_wh
         )
+        frame_no = 0
+        OUTPUT_SIZE = (1280,720)
+
+        video_writer = cv2.VideoWriter(
+            output_path,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            video_info.fps,
+            OUTPUT_SIZE
+        )
+        
         for frame in frame_generator:
+            frame_no += 1
+            frame = cv2.resize(frame,OUTPUT_SIZE)
+            
             results = model.predict(
                 frame,
-                imgsz=480,
+                imgsz=512,
                 conf=0.25,
                 verbose=False,
                 classes=[2, 3, 5, 7],   # car, motorcycle, bus, truck
@@ -101,9 +125,13 @@ def process_video(video_path, output_path):
             points=view_transform.transform_points(points).astype(int)
             
             labels=[]
-            if detections.tracker_id is None:
-                video_writer.write(frame)
-                continue
+            if detections.tracker_id is not None:
+                active_ids = set(detections.tracker_id)
+                for tid in list(coordinates.keys()):
+                    if tid not in active_ids:
+                        coordinates.pop(tid, None)
+                        speed_history.pop(tid, None)
+                        final_speed.pop(tid, None)
             for tracker_id, [_,y] in zip(detections.tracker_id, points):
                 coordinates[tracker_id].append(y)
                 WINDOW = FPS // 2
@@ -122,7 +150,7 @@ def process_video(video_path, output_path):
 
                     time = WINDOW / FPS
 
-                    speed = (distance_m / time) * 3.6 * 2.0
+                    speed = (distance_m / time) * 3.6
 
                     speed_history[tracker_id].append(speed)
 
@@ -138,7 +166,7 @@ def process_video(video_path, output_path):
                     labels.append(f"#{tracker_id}")
                 
                 
-            annotated_frame=frame.copy()
+            annotated_frame=frame
             annotated_frame=trace_annotator.annotate(
                 scene=annotated_frame, detections=detections)
             annotated_frame=bounding_box_annotator.annotate(
@@ -147,9 +175,19 @@ def process_video(video_path, output_path):
                 scene=annotated_frame, detections=detections, labels=labels
             )
             video_writer.write(annotated_frame)
+            del results
+            del detections
+            del points
+            if frame_no % 100 == 0:
+                gc.collect()
 
         video_writer.release()
+        cv2.destroyAllWindows()
+
+        del model
+        gc.collect()
 
         return output_path
+        
 
 
