@@ -49,6 +49,9 @@ if uploaded_file is not None:
 
     except Exception as e:
         import traceback
-
         traceback.print_exc()   # Shows full error in Render logs
         st.error(f"Error: {e}")
+    finally:
+    # Delete only the uploaded file
+        if os.path.exists(input_path):
+            os.remove(input_path)
