@@ -1,5 +1,17 @@
+title: Vehicle Speed Detection
+emoji: 🚗
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+sdk_version: "1.49.0"
+python_version: "3.11"
+app_file: app.py
+pinned: false
+---
+
 ### 🚗 Vehicle Speed Detection 
 
+This application detects vehicles and estimates their speed using YOLOv8 and Streamlit.
 A real-time Vehicle Speed Detection System built with 
 
 - **YOLOv8n**
